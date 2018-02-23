@@ -8,11 +8,49 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"net/http"
+	"flag"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	server := "http://localhost:8545"
-	//server := "https://mainnet.infura.io"
+var serverMode = flag.String("mode","production","Set to 'testing' to enable address and tx lookup.")
+var server = "http://localhost:8545"
+//var server = "https://mainnet.infura.io"
+
+func addressHandler(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprint(w, "Address Balance requested: ", r.URL.Path[6:], "\n")
+
+	cl, err := ethclient.Dial(server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+
+	ctx := context.Background()
+	balance, err := cl.BalanceAt(ctx, common.StringToAddress(r.URL.Path[6:]), nil)
+	fmt.Fprint(w, balance)
+}
+
+func txHandler(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprint(w, "Transaction requested: ", r.URL.Path[4:], "\n")
+
+	cl, err := ethclient.Dial(server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+
+	ctx := context.Background()
+	tx, pending, _ := cl.TransactionByHash(ctx, common.HexToHash(r.URL.Path[4:]))
+	if !pending {
+		fmt.Fprint(w, tx)
+	} else {
+		fmt.Fprint(w, "Warning: Transaction Pending\n")
+	}
+}
+
+func eventsHandler(w http.ResponseWriter, r *http.Request) {
+	if *serverMode == "testing" {
+		fmt.Fprint(w, "Events Requested: ", r.URL.Path[8:], "\n")
+	}
 
 	cl, err := ethclient.Dial(server)
 	if err != nil {
@@ -23,7 +61,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	//0x4df81d58993ff6f6e3a721b2ac0a08a5cd78ce9e
 	//0x6090A6e47849629b7245Dfa1Ca21D94cd15878Ef
 
-	fltr.Addresses = []common.Address{common.HexToAddress(r.URL.Path[1:])}
+	fltr.Addresses = []common.Address{common.HexToAddress(r.URL.Path[8:])}
 	ctx := context.Background()
 	lgs, err := cl.FilterLogs(ctx, fltr)
 	if err != nil {
@@ -31,15 +69,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 
-	//An Early block transaction to test a geth node that isn't fully sync'd.
-	//ctx := context.Background()
-	//tx, pending, _ := cl.TransactionByHash(ctx, common.HexToHash("0x14fcfe755cf24fe8d36464d58e0e333d2a0a59fdad07193ed0fcf6c34557772c"))
-	//if !pending {
-	//	fmt.Println(tx)
-	//}
-
 	// Encode Response to the writer
-
 	for _, l := range lgs {
 		//b, err := l.MarshalJSON()
 		//if err != nil {
@@ -50,6 +80,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/", handler)
+	flag.Parse()
+	if *serverMode == "testing" {
+		http.HandleFunc("/addr/", addressHandler)
+		http.HandleFunc("/tx/",txHandler)
+	}
+	http.HandleFunc("/events/", eventsHandler)
 	http.ListenAndServe(":8080", nil)
 }

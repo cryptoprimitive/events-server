@@ -11,7 +11,7 @@ import (
 	"flag"
 )
 
-var serverMode = flag.String("mode","production","Set to 'testing' to enable address and tx lookup.")
+var serverMode = flag.String("serverMode","production","Set to 'testing' to enable address and tx lookup.")
 var server = "http://localhost:8545"
 //var server = "https://mainnet.infura.io"
 

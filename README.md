@@ -13,4 +13,5 @@ Address API
 /addr/address returns balance of address (must have testing enabled)
 
 Transaction API
+
 /tx/txHash returns the transaction summary json (must have testing enabled)

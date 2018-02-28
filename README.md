@@ -4,6 +4,11 @@ The events-server provides an api to access the events log. It can also be
 run with a '--serverMode testing' flag which opens up address balance
 lookup and transaction lookup api's.
 
+## Sync API
+
+    http://hostname/sync
+Returns sync status of the node
+
 ## Events API
 
     http://hostname/events/address

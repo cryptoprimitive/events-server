@@ -15,9 +15,26 @@ var serverMode = flag.String("serverMode","production","Set to 'testing' to enab
 var server = "http://localhost:8545"
 //var server = "https://mainnet.infura.io"
 
+func syncHandler(w http.ResponseWriter, _ *http.Request) {
+	fmt.Fprint(w, "Node sync status requested\n")
+
+	cl, err := ethclient.Dial(server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+
+	ctx := context.Background()
+	prog, err := cl.SyncProgress(ctx)
+	if err != nil {
+		log.Panic("Error Fetching Sync Status: ", err)
+	}
+
+	fmt.Fprint(w, prog)
+}
+
 func addressHandler(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Fprint(w, "Address Balance requested: ", r.URL.Path[6:], "\n")
+	fmt.Fprint(w, "Address Balance Requested: ", r.URL.Path[6:], "\n")
 
 	cl, err := ethclient.Dial(server)
 	if err != nil {
@@ -26,12 +43,16 @@ func addressHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 	balance, err := cl.BalanceAt(ctx, common.StringToAddress(r.URL.Path[6:]), nil)
+	if err != nil {
+		log.Panic("Error Fetching Balance: ", err)
+	}
+
 	fmt.Fprint(w, balance)
 }
 
 func txHandler(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Fprint(w, "Transaction requested: ", r.URL.Path[4:], "\n")
+	fmt.Fprint(w, "Transaction Requested: ", r.URL.Path[4:], "\n")
 
 	cl, err := ethclient.Dial(server)
 	if err != nil {
@@ -39,11 +60,16 @@ func txHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	tx, pending, _ := cl.TransactionByHash(ctx, common.HexToHash(r.URL.Path[4:]))
+	tx, pending, err := cl.TransactionByHash(ctx, common.HexToHash(r.URL.Path[4:]))
+	if err != nil {
+		log.Panic("Error Fetching Transaction: ", err)
+	}
+
 	if !pending {
 		fmt.Fprint(w, tx)
 	} else {
 		fmt.Fprint(w, "Warning: Transaction Pending\n")
+		fmt.Fprint(w, tx)
 	}
 }
 
@@ -83,7 +109,8 @@ func main() {
 	flag.Parse()
 	if *serverMode == "testing" {
 		http.HandleFunc("/addr/", addressHandler)
-		http.HandleFunc("/tx/",txHandler)
+		http.HandleFunc("/tx/", txHandler)
+		http.HandleFunc("/sync", syncHandler)
 	}
 	http.HandleFunc("/events/", eventsHandler)
 	http.ListenAndServe(":8080", nil)

@@ -29,7 +29,7 @@ func syncHandler(w http.ResponseWriter, _ *http.Request) {
 		log.Panic("Error Fetching Sync Status: ", err)
 	}
 
-	fmt.Fprint(w, prog)
+	fmt.Fprint(w, "Current Block: ", prog.CurrentBlock, "\nHighestBlock: ", prog.HighestBlock)
 }
 
 func addressHandler(w http.ResponseWriter, r *http.Request) {

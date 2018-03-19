@@ -1,8 +1,6 @@
 # events-server
 
-The events-server provides an api to access the events log. It can also be
-run with a '--serverMode testing' flag which opens up address balance
-lookup and transaction lookup api's.
+The events-server provides an api to access the events log.
 
 ## Sync API
 
@@ -23,3 +21,15 @@ Returns balance of address (must have testing enabled)
 
     http://hostname/tx/txHash 
 Returns the transaction summary json (must have testing enabled)
+
+## Flags
+
+### serverMode flag
+
+Run with '--serverMode testing' to enable additional features
+and testing output
+ 
+### fromBlock flag
+
+Set the --fromBlock flag to set what block to start the events search 
+from.

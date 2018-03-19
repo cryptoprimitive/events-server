@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"flag"
+	"math/big"
 )
 
-var serverMode = flag.String("serverMode","production","Set to 'testing' to enable address and tx lookup.")
+var serverMode = flag.String("serverMode","production","Set to 'testing' to enable debug access.")
 var server = "http://localhost:8545"
 //var server = "https://mainnet.infura.io"
+var fromBlock = flag.Int("fromBlock", 0, "Set to block to start server queries from.")
 
 func syncHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, "Node sync status requested\n")
@@ -29,7 +31,11 @@ func syncHandler(w http.ResponseWriter, _ *http.Request) {
 		log.Panic("Error Fetching Sync Status: ", err)
 	}
 
-	fmt.Fprint(w, "Current Block: ", prog.CurrentBlock, "\nHighestBlock: ", prog.HighestBlock)
+	if prog == nil {
+		fmt.Fprint(w, "Syncing complete!\n")
+	} else {
+		fmt.Fprint(w, "Current Block: ", prog.CurrentBlock, "\nHighestBlock: ", prog.HighestBlock)
+	}
 }
 
 func addressHandler(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +82,7 @@ func txHandler(w http.ResponseWriter, r *http.Request) {
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	if *serverMode == "testing" {
 		fmt.Fprint(w, "Events Requested: ", r.URL.Path[8:], "\n")
+		fmt.Fprint(w, "Starting from Block: ", *fromBlock, "\n")
 	}
 
 	cl, err := ethclient.Dial(server)
@@ -88,6 +95,7 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	//0x6090A6e47849629b7245Dfa1Ca21D94cd15878Ef
 
 	fltr.Addresses = []common.Address{common.HexToAddress(r.URL.Path[8:])}
+	fltr.FromBlock = big.NewInt(int64(*fromBlock))
 	ctx := context.Background()
 	lgs, err := cl.FilterLogs(ctx, fltr)
 	if err != nil {

@@ -87,7 +87,11 @@ func blockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	block, err := cl.BlockByNumber(ctx, big.NewInt(int64(strconv.Atoi(r.URL.Path[7:]))))
+	i, err := strconv.Atoi(r.URL.Path[7:])
+	if err != nil {
+		log.Panic("Error Coverting Block Number: ", err)
+	}
+	block, err := cl.BlockByNumber(ctx, big.NewInt(int64(i)))
 	if err != nil {
 		log.Panic("Block Fetch Error: ", err)
 	}

@@ -133,7 +133,7 @@ func main() {
 	if *serverMode == "testing" {
 		http.HandleFunc("/addr/", addressHandler)
 		http.HandleFunc("/tx/", txHandler)
-		htpp.HandleFunc("/block/", blockHandler)
+		http.HandleFunc("/block/", blockHandler)
 		http.HandleFunc("/sync", syncHandler)
 	}
 	http.HandleFunc("/events/", eventsHandler)

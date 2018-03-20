@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"flag"
 	"math/big"
+	"strconv"
 )
 
 var serverMode = flag.String("serverMode","production","Set to 'testing' to enable debug access.")
@@ -48,7 +49,7 @@ func addressHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	balance, err := cl.BalanceAt(ctx, common.StringToAddress(r.URL.Path[6:]), nil)
+	balance, err := cl.BalanceAt(ctx, common.HexToAddress(r.URL.Path[6:]), nil)
 	if err != nil {
 		log.Panic("Error Fetching Balance: ", err)
 	}
@@ -77,6 +78,20 @@ func txHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Warning: Transaction Pending\n")
 		fmt.Fprint(w, tx)
 	}
+}
+
+func blockHandler(w http.ResponseWriter, r *http.Request) {
+	cl, err := ethclient.Dial(server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+
+	ctx := context.Background()
+	block, err := cl.BlockByNumber(ctx, big.NewInt(int64(strconv.Atoi(r.URL.Path[7:]))))
+	if err != nil {
+		log.Panic("Block Fetch Error: ", err)
+	}
+	fmt.Fprint(w, block)
 }
 
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +133,7 @@ func main() {
 	if *serverMode == "testing" {
 		http.HandleFunc("/addr/", addressHandler)
 		http.HandleFunc("/tx/", txHandler)
+		htpp.HandleFunc("/block/", blockHandler)
 		http.HandleFunc("/sync", syncHandler)
 	}
 	http.HandleFunc("/events/", eventsHandler)

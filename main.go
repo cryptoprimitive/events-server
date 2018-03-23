@@ -14,8 +14,9 @@ import (
 )
 
 var serverMode = flag.String("serverMode","production","Set to 'testing' to enable debug access.")
-var server = "http://localhost:8545"
+//var server = "http://localhost:8545"
 //var server = "https://mainnet.infura.io"
+var server = "http://35.185.80.97:8545"
 var fromBlock = flag.Int("fromBlock", 0, "Set to block to start server queries from.")
 
 func syncHandler(w http.ResponseWriter, _ *http.Request) {
@@ -98,6 +99,47 @@ func blockHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, block)
 }
 
+func blockeventsHandler(w http.ResponseWriter, r *http.Request) {
+	if *serverMode == "testing" {
+		fmt.Fprint(w, "Block Events Requested: ", r.URL.Path[13:], "\n")
+	}
+	cl, err := ethclient.Dial(server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+
+	ctx := context.Background()
+
+	i, err := strconv.Atoi(r.URL.Path[13:])
+	if err != nil {
+		log.Panic("Error Coverting Block Number: ", err)
+	}
+
+	block, err := cl.BlockByNumber(ctx, big.NewInt(int64(i)))
+	if err != nil {
+		log.Panic("Block Fetch Error: ", err)
+	}
+
+	txs := block.Transactions()
+
+	for _, t := range txs {
+		receipt, err := cl.TransactionReceipt(ctx, t.Hash())
+		if err != nil {
+			log.Panic("Receipt Error: ", err)
+		}
+		for _, lg := range receipt.Logs {
+			output, err := lg.MarshalJSON()
+			if err != nil {
+				log.Panic("JSON Marshalling Error: ", err)
+			}
+			_, err = w.Write(output)
+			if err != nil {
+				log.Panic("Error Writing Output: ", err)
+			}
+		}
+	}
+}
+
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	if *serverMode == "testing" {
 		fmt.Fprint(w, "Events Requested: ", r.URL.Path[8:], "\n")
@@ -140,6 +182,8 @@ func main() {
 		http.HandleFunc("/block/", blockHandler)
 		http.HandleFunc("/sync", syncHandler)
 	}
+
+	http.HandleFunc("/blockevents/", blockeventsHandler)
 	http.HandleFunc("/events/", eventsHandler)
 	http.ListenAndServe(":8080", nil)
 }

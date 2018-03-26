@@ -14,15 +14,14 @@ import (
 )
 
 var serverMode = flag.String("serverMode","production","Set to 'testing' to enable debug access.")
-//var server = "http://localhost:8545"
+var server = flag.String("host", "http://localhost:8545", "Set server host.")
 //var server = "https://mainnet.infura.io"
-var server = "http://35.185.80.97:8545"
 var fromBlock = flag.Int("fromBlock", 0, "Set to block to start server queries from.")
 
 func syncHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, "Node sync status requested\n")
 
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -44,7 +43,7 @@ func addressHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprint(w, "Address Balance Requested: ", r.URL.Path[6:], "\n")
 
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -62,7 +61,7 @@ func txHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprint(w, "Transaction Requested: ", r.URL.Path[4:], "\n")
 
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -82,7 +81,7 @@ func txHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func blockHandler(w http.ResponseWriter, r *http.Request) {
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -103,7 +102,7 @@ func blockeventsHandler(w http.ResponseWriter, r *http.Request) {
 	if *serverMode == "testing" {
 		fmt.Fprint(w, "Block Events Requested: ", r.URL.Path[13:], "\n")
 	}
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -128,11 +127,11 @@ func blockeventsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Panic("Receipt Error: ", err)
 		}
 		for _, lg := range receipt.Logs {
-			output, err := lg.MarshalJSON()
+			b, err := lg.MarshalJSON()
 			if err != nil {
 				log.Panic("JSON Marshalling Error: ", err)
 			}
-			_, err = w.Write(output)
+			_, err = w.Write(b)
 			if err != nil {
 				log.Panic("Error Writing Output: ", err)
 			}
@@ -146,7 +145,7 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Starting from Block: ", *fromBlock, "\n")
 	}
 
-	cl, err := ethclient.Dial(server)
+	cl, err := ethclient.Dial(*server)
 	if err != nil {
 		log.Panic("Connection Error: ", err)
 	}
@@ -166,11 +165,14 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Encode Response to the writer
 	for _, l := range lgs {
-		//b, err := l.MarshalJSON()
-		//if err != nil {
-		//	log.Panic("JSON Marshal Error: ", err)
-		//}
-		fmt.Fprint(w, l)
+		b, err := l.MarshalJSON()
+		if err != nil {
+			log.Panic("JSON Marshal Error: ", err)
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			log.Panic("Error Writing Output: ", err)
+		}
 	}
 }
 

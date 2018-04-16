@@ -145,35 +145,11 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Starting from Block: ", *fromBlock, "\n")
 	}
 
-	cl, err := ethclient.Dial(*server)
-	if err != nil {
-		log.Panic("Connection Error: ", err)
-	}
+	go createFile(r.URL.Path[8:])
+	fmt.Fprint(w, "Creating Account Information\n")
 
-	var fltr ethereum.FilterQuery
 	//0x4df81d58993ff6f6e3a721b2ac0a08a5cd78ce9e
 	//0x6090A6e47849629b7245Dfa1Ca21D94cd15878Ef
-
-	fltr.Addresses = []common.Address{common.HexToAddress(r.URL.Path[8:])}
-	fltr.FromBlock = big.NewInt(int64(*fromBlock))
-	ctx := context.Background()
-	lgs, err := cl.FilterLogs(ctx, fltr)
-	if err != nil {
-		log.Panic("Filter Error: ", err)
-	}
-
-
-	// Encode Response to the writer
-	for _, l := range lgs {
-		b, err := l.MarshalJSON()
-		if err != nil {
-			log.Panic("JSON Marshal Error: ", err)
-		}
-		_, err = w.Write(b)
-		if err != nil {
-			log.Panic("Error Writing Output: ", err)
-		}
-	}
 }
 
 func main() {

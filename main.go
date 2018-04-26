@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
@@ -11,6 +10,8 @@ import (
 	"flag"
 	"math/big"
 	"strconv"
+	"github.com/ethereum/go-ethereum/core/types"
+	"encoding/json"
 )
 
 var serverMode = flag.String("serverMode","production","Set to 'testing' to enable debug access.")
@@ -140,17 +141,28 @@ func blockeventsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
+	addr := r.URL.Path[8:]
 	if *serverMode == "testing" {
-		fmt.Fprint(w, "Events Requested: ", r.URL.Path[8:], "\n")
+		fmt.Fprint(w, "Events Requested: ", addr, "\n")
 		fmt.Fprint(w, "Starting from Block: ", *fromBlock, "\n")
 	}
+	evtReturner := eventReturner{address: addr}
+	eventReturnerChan <- &evtReturner
 
-	go createFile(r.URL.Path[8:])
-	fmt.Fprint(w, "Creating Account Information\n")
-
+	v, err := json.Marshal(evtReturner.logs)
+	if err != nil {
+		log.Panic("Marshal Error: ", err)
+	}
+	_, err = w.Write(v)
+	if err != nil {
+		log.Panic("Error Writing Logs")
+	}
 	//0x4df81d58993ff6f6e3a721b2ac0a08a5cd78ce9e
 	//0x6090A6e47849629b7245Dfa1Ca21D94cd15878Ef
 }
+
+var eventReturnerChan = make(chan *eventReturner)
+var newEventsChan = make(chan *types.Log)
 
 func main() {
 	flag.Parse()
@@ -160,6 +172,8 @@ func main() {
 		http.HandleFunc("/block/", blockHandler)
 		http.HandleFunc("/sync", syncHandler)
 	}
+
+	go FileManager(eventReturnerChan, newEventsChan)
 
 	http.HandleFunc("/blockevents/", blockeventsHandler)
 	http.HandleFunc("/events/", eventsHandler)

@@ -143,13 +143,17 @@ func blockeventsHandler(w http.ResponseWriter, r *http.Request) {
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	addr := r.URL.Path[8:]
 	if *serverMode == "testing" {
-		fmt.Fprint(w, "Events Requested: ", addr, "\n")
-		fmt.Fprint(w, "Starting from Block: ", *fromBlock, "\n")
+		fmt.Print("Events Requested: ", addr, "\n")
+		fmt.Print("Starting from Block: ", *fromBlock, "\n")
 	}
 	evtReturner := eventReturner{address: addr}
 	eventReturnerChan <- &evtReturner
 
 	evtReturned := <-eventReturnerChan
+	if evtReturned.err != nil {
+		fmt.Fprint(w, "Status of Account: ", evtReturned.err, "/n")
+		return
+	}
 	v, err := json.Marshal(evtReturned.logs)
 	if err != nil {
 		log.Panic("Marshal Error: ", err)
@@ -175,6 +179,8 @@ func main() {
 	}
 
 	go FileManager(eventReturnerChan, newEventsChan)
+	go SubListener(newEventsChan)
+	//go testListener(newEventsChan)
 
 	http.HandleFunc("/blockevents/", blockeventsHandler)
 	http.HandleFunc("/events/", eventsHandler)

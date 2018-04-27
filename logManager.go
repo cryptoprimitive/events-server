@@ -85,7 +85,20 @@ type eventReturner struct {
 	err     error
 }
 
+type createAccount struct {
+	filename string
+	address string
+	addrFile addressFile
+}
+
+func createAccountFunc(createAccountStruct createAccount, accountCreatedChan chan *createAccount) {
+	createAccountStruct.addrFile = *createFile(createAccountStruct.address)
+	accountCreatedChan <- &createAccountStruct
+}
+
 func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *types.Log) {
+	var accountCreatedChan = make(chan *createAccount)
+
 	dir, err := os.Open("logs")
 	if err != nil {
 		log.Panic("Error Opening Directory: ", err)
@@ -95,20 +108,64 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 	for _, fileString := range files {
 		AllAccounts[fileString] = addressFile{fileName: fileString, status: isSynced(fileString)}
 	}
-	fmt.Print(AllAccounts)
+	//fmt.Print(AllAccounts)
 	for {
 		select {
-		//case newEvent := <-newEventsChan:
+		case newEvent := <-newEventsChan:
 		//handle new event
+			address := newEvent.Address.Hex()
+			fmt.Print(address, "\n", AllAccounts, "\n")
+			filename := logFilename(address)
+			account, exists := AllAccounts[filename]
+			fmt.Print(account, "\n", exists, "\n", filename, "\n", AllAccounts)
+			if exists == true {
+				f, err := os.OpenFile(fmt.Sprint("logs/", account.fileName), os.O_RDWR, 0644)
+				if err != nil {
+					log.Panic("File error: ", err)
+				}
+				_, err = f.Seek(-1,2)
+				if err != nil {
+					log.Panic("Error seeking for file write: ", err)
+				}
+				b, err := json.Marshal(newEvent)
+				if err != nil {
+					log.Panic("Marshal Error: ", err)
+				}
+				_, err = f.Write([]byte{','})
+				if err != nil {
+					fmt.Print("Error Writing Literal: ", err)
+				}
+				fmt.Print("Writing: ", b[1:])
+				_, err = f.Write(b)
+				if err != nil {
+					log.Panic("Error Writing: ", err)
+				}
+				_, err = f.Write([]byte{']'})
+				if err != nil {
+					log.Panic("Error Writing: ", err)
+				}
+				f.Close()
+
+				//add event to file
+			}
 		case returner := <-eventsReturnerChan:
 			filename := logFilename(returner.address)
 			account, exists := AllAccounts[filename]
+			//fmt.Print(account, exists, filename, "\n", AllAccounts)
 			if exists == false {
-				AllAccounts[filename] = *createFile(returner.address)
-				returner.err = fmt.Errorf("Account Being Created")
+				addrfile := new(addressFile)
+				addrfile.fileName = filename
+				addrfile.status = EVENTS_PENDING
+				AllAccounts[filename] = *addrfile
+				createAccountStruct := createAccount{filename: filename, address: returner.address, addrFile: *addrfile}
+				go createAccountFunc(createAccountStruct, accountCreatedChan)
+				returner.err = fmt.Errorf("Account Being Create %s", returner.address)
+				eventReturnerChan <- returner
+				break
 			}
 			if account.status == EVENTS_PENDING {
-				returner.err = fmt.Errorf("Events Being Synced")
+				returner.err = fmt.Errorf("Events Being Synced for account %s", returner.address)
+				eventReturnerChan <- returner
 				break
 			}
 
@@ -134,7 +191,73 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 			}
 			returner.logs = lgs
 			eventReturnerChan <- returner
+		case accountCreatedStruct := <-accountCreatedChan:
+			AllAccounts[accountCreatedStruct.filename] = accountCreatedStruct.addrFile
 		}
+	}
+}
+
+func SubListener(newEventsChan chan *types.Log) {
+	ctx := context.Background()
+	headerChan := make(chan *types.Header)
+	cl, err := ethclient.Dial(*server)
+	if err != nil {
+		log.Panic("Connection Error: ", err)
+	}
+	subscription, err := cl.SubscribeNewHead(ctx, headerChan)
+	if err != nil {
+		fmt.Print("Header Subscription Fail: ", err,"\nEvents not updating")
+		return
+	}
+	defer subscription.Unsubscribe()
+
+	for {
+		header := <-headerChan
+		fmt.Print(header, "\n")
+		num := header.Number
+		block, err := cl.BlockByNumber(ctx, num)
+		if err != nil {
+			log.Panic("Block Fetch Error: ", err)
+		}
+
+		txs := block.Transactions()
+
+		for _, t := range txs {
+			receipt, err := cl.TransactionReceipt(ctx, t.Hash())
+			if err != nil {
+				log.Panic("Receipt Error: ", err)
+			}
+			for _, lg := range receipt.Logs {
+				newEventsChan <- lg
+			}
+		}
+	}
+}
+
+func testListener(newEventsChan chan *types.Log) {
+	f, err := os.Open("testdata/test.json")
+	if err != nil {
+		log.Panic("File error: ", err)
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		log.Panic("Stat Error: ", err)
+	}
+
+	b := make([]byte, stat.Size())
+	_, err = f.Read(b)
+	if err != nil {
+		log.Panic("File Read Error: ", err)
+	}
+
+	lgs := make([]types.Log, 0)
+	err = json.Unmarshal(b, &lgs)
+	if err != nil {
+		log.Panic("Unmarshal Error: ", err)
+	}
+	for _, lg := range lgs {
+		//fmt.Print("Sending along channel:", lg,"\n")
+		newEventsChan <- &lg
 	}
 }
 

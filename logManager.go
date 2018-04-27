@@ -27,21 +27,25 @@ type addressFile struct {
 }
 
 func logFilename(address string) string {
-	return fmt.Sprint("logs/", address, ".json")
+	return fmt.Sprint(address, ".json")
 }
 
 func createFile(address string) (addrFile *addressFile) {
 	fmt.Print("Creating file for account: ", address, "\n")
 
+	addrFile = new(addressFile)
+
 	cl, err := ethclient.Dial(*server)
 	if err != nil {
+		fmt.Print(err)
 		addrFile.err = err
 		return addrFile
 		//log.Panic("Connection Error: ", err)
 	}
 	filename := logFilename(address)
-	f, err := os.Create(filename)
+	f, err := os.Create(fmt.Sprint("logs/", filename))
 	if err != nil {
+		fmt.Print(err)
 		addrFile.err = err
 		return addrFile
 		//log.Panic("File Creation Error: ", err)
@@ -51,6 +55,7 @@ func createFile(address string) (addrFile *addressFile) {
 	ctx := context.Background()
 	lgs, err := cl.FilterLogs(ctx, fltr)
 	if err != nil {
+		fmt.Print(err)
 		addrFile.err = err
 		return addrFile
 		//log.Panic("Filter Error: ", err)
@@ -70,7 +75,7 @@ func createFile(address string) (addrFile *addressFile) {
 	addrFile.fileName = filename
 	f.Close()
 	addrFile.status = EVENTS_SYNCED
-	fmt.Print("File Created\n")
+	fmt.Print("File Created\n", addrFile, "\n")
 	return addrFile
 }
 
@@ -86,10 +91,11 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 		log.Panic("Error Opening Directory: ", err)
 	}
 	files, err := dir.Readdirnames(-1)
-	var AllAccounts map[string]addressFile
+	var AllAccounts = make(map[string]addressFile)
 	for _, fileString := range files {
 		AllAccounts[fileString] = addressFile{fileName: fileString, status: isSynced(fileString)}
 	}
+	fmt.Print(AllAccounts)
 	for {
 		select {
 		//case newEvent := <-newEventsChan:
@@ -98,7 +104,7 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 			filename := logFilename(returner.address)
 			account, exists := AllAccounts[filename]
 			if exists == false {
-				createFile(returner.address)
+				AllAccounts[filename] = *createFile(returner.address)
 				returner.err = fmt.Errorf("Account Being Created")
 			}
 			if account.status == EVENTS_PENDING {
@@ -106,7 +112,7 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 				break
 			}
 
-			f, err := os.Open(account.fileName)
+			f, err := os.Open(fmt.Sprint("logs/", account.fileName))
 			if err != nil {
 				log.Panic("File error: ", err)
 			}
@@ -127,7 +133,7 @@ func FileManager(eventsReturnerChan chan *eventReturner, newEventsChan chan *typ
 				log.Panic("Unmarshal Error: ", err)
 			}
 			returner.logs = lgs
-			//Return new events
+			eventReturnerChan <- returner
 		}
 	}
 }

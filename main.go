@@ -149,7 +149,8 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	evtReturner := eventReturner{address: addr}
 	eventReturnerChan <- &evtReturner
 
-	v, err := json.Marshal(evtReturner.logs)
+	evtReturned := <-eventReturnerChan
+	v, err := json.Marshal(evtReturned.logs)
 	if err != nil {
 		log.Panic("Marshal Error: ", err)
 	}
